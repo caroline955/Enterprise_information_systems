@@ -1,0 +1,56 @@
+import pandas as pd
+from prophet import Prophet
+import matplotlib.pyplot as plt
+
+# 1. ĐỌC VÀ XỬ LÝ DỮ LIỆU
+# ---------------------------------------------------------
+# Đọc file CSV
+df = pd.read_csv('pys_travel_1000.csv')
+
+# Chuyển đổi cột Date sang định dạng datetime
+# Sử dụng errors='coerce' để biến các giá trị không hợp lệ thành NaT
+# Sau đó loại bỏ các dòng có NaT trong cột Date
+df['Date'] = pd.to_datetime(df['Date'], errors='coerce', format='mixed', dayfirst=True)
+df = df.dropna(subset=['Date'])
+
+# Xử lý cột Doanh thu: Xóa dấu phẩy ',' và chuyển sang số
+# Ví dụ: "99,232,698" -> 99232698.0
+df['Revenue(VND)'] = df['Revenue(VND)'].astype(str).str.replace(',', '').astype(float)
+
+# Loại bỏ các dòng trống (nếu có)
+df = df.dropna(subset=['Date', 'Revenue(VND)'])
+
+print("Dữ liệu sau khi xử lý:")
+print(df[['Date', 'Revenue(VND)']].head())
+
+# 2. CHUẨN BỊ DỮ LIỆU CHO PROPHET (DỰ BÁO DOANH THU)
+# ---------------------------------------------------------
+# Prophet yêu cầu 2 cột: 'ds' (thời gian) và 'y' (giá trị cần dự báo)
+df_revenue = df[['Date', 'Revenue(VND)']].rename(columns={'Date': 'ds', 'Revenue(VND)': 'y'})
+
+# 3. HUẤN LUYỆN MÔ HÌNH
+# ---------------------------------------------------------
+print("Đang huấn luyện mô hình dự báo doanh thu...")
+m = Prophet(daily_seasonality=True) # Bật tính chu kỳ theo ngày
+m.fit(df_revenue)
+
+# 4. TẠO KHUNG THỜI GIAN TƯƠNG LAI & DỰ BÁO
+# ---------------------------------------------------------
+# Dự báo cho 90 ngày tới (3 tháng)
+future = m.make_future_dataframe(periods=90)
+forecast = m.predict(future)
+
+# 5. HIỂN THỊ KẾT QUẢ
+# ---------------------------------------------------------
+print(forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail())
+
+# Vẽ biểu đồ Doanh thu
+fig1 = m.plot(forecast)
+plt.title('Dự báo Doanh thu Pystravel (3 tháng tới)', fontsize=16)
+plt.xlabel('Thời gian')
+plt.ylabel('Doanh thu (VND)')
+plt.show()
+
+# Vẽ biểu đồ các thành phần (Xu hướng, Mùa vụ)
+fig2 = m.plot_components(forecast)
+plt.show()
